@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Sheet — Bulk Image Metadata Generator</title>
+<style>
+  :root[data-theme="dark"]{
+    --bg:#14161a; --bg-soft:#191c21; --card:#1d2025; --card-hi:#23272e;
+    --line:#2b2f36; --line-soft:#25282f;
+    --text:#e8e6e1; --text-dim:#9aa0a8; --text-faint:#666c75;
+    --amber:#f2a65a; --amber-dim:#c9834099; --cyan:#5cc8d7; --cyan-dim:#5cc8d766;
+    --red:#e2685f; --green:#7bc38a;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f2ea; --bg-soft:#efece2; --card:#ffffff; --card-hi:#faf8f2;
+    --line:#ddd7c8; --line-soft:#e6e1d3;
+    --text:#232019; --text-dim:#6b6459; --text-faint:#a39c8c;
+    --amber:#c9762f; --amber-dim:#c9762f55; --cyan:#1a8b98; --cyan-dim:#1a8b9840;
+    --red:#c0392b; --green:#2f8f52;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --shadow: 0 8px 24px rgba(0,0,0,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);transition:background .25s,color .25s;}
+  ::selection{background:var(--amber);color:#14161a;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line);background:var(--bg-soft);position:sticky;top:0;z-index:20;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .mark{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,var(--amber),var(--cyan));display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;color:#14161a;font-size:14px;}
+  .brand h1{font-size:16px;margin:0;letter-spacing:.02em;}
+  .brand span{display:block;font-size:11px;color:var(--text-faint);font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;}
+  .theme-toggle{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px;cursor:pointer;user-select:none;}
+  .theme-toggle .knob{width:26px;height:26px;border-radius:999px;background:var(--amber);display:flex;align-items:center;justify-content:center;font-size:13px;transition:transform .2s;}
+  .theme-toggle .lbl{font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:0 6px;}
+
+  .layout{display:grid;grid-template-columns:340px 1fr;gap:20px;padding:20px 24px 60px;align-items:start;}
+  @media (max-width:900px){.layout{grid-template-columns:1fr;}}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:var(--shadow);}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-faint);margin:0 0 12px;font-family:var(--mono);display:flex;align-items:center;gap:8px;}
+  .card h2::before{content:'';width:6px;height:6px;background:var(--amber);border-radius:1px;transform:rotate(45deg);}
+  .card h2.collapsible-head::before{display:none;}
+
+  .platform-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+  .platform-btn{display:flex;align-items:center;gap:8px;background:var(--bg-soft);border:1px solid var(--line);color:var(--text-dim);border-radius:8px;padding:10px 12px;font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s;position:relative;}
+  .platform-btn:hover{border-color:var(--amber);color:var(--text);}
+  .platform-btn.active{background:var(--card-hi);border-color:var(--amber);color:var(--text);box-shadow:0 0 0 1px var(--amber-dim);}
+  .platform-btn.active::after{content:'';position:absolute;top:8px;right:8px;width:5px;height:5px;border-radius:50%;background:var(--amber);}
+  .platform-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;background:var(--line-soft);border-radius:5px;font-size:10px;font-weight:700;flex-shrink:0;font-family:var(--mono);}
+  .platform-btn.active .platform-icon{background:var(--amber);color:#181a1e;}
+
+  label.field-label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;}
+  textarea, input[type=text], select{
+    width:100%;background:var(--bg-soft);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:9px 10px;font-family:var(--mono);font-size:12.5px;resize:vertical;
+  }
+  textarea:focus, input:focus, select:focus{outline:none;border-color:var(--amber);}
+  .hint{font-size:11px;color:var(--text-faint);margin-top:6px;line-height:1.5;}
+
+  .row{display:flex;gap:10px;}
+  .row > *{flex:1;}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--bg-soft);color:var(--text);border-radius:8px;padding:10px 14px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
+  .btn:hover{border-color:var(--amber);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-primary{background:var(--amber);border-color:var(--amber);color:#181a1e;}
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-ghost{background:transparent;}
+  .btn-block{width:100%;margin-top:10px;}
+  .btn-sm{padding:6px 10px;font-size:12px;}
+
+  /* sliders */
+  .slider-wrap{margin-bottom:4px;}
+  .slider-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .slider-head .val{font-family:var(--mono);color:var(--amber);font-size:13px;font-weight:700;}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;background:var(--line);border-radius:2px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--amber);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--amber);cursor:pointer;margin-top:-6px;}
+  input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;}
+  .range-dual{position:relative;height:28px;}
+  .range-dual input[type=range]{position:absolute;top:10px;left:0;pointer-events:none;background:transparent;z-index:1;}
+  .range-dual input[type=range]::-webkit-slider-thumb{pointer-events:all;}
+  .range-track{position:absolute;top:12px;left:0;right:0;height:4px;background:var(--line);border-radius:2px;}
+  .range-fill{position:absolute;top:12px;height:4px;background:var(--cyan);border-radius:2px;}
+
+  .provider-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .provider-tab{flex:1;min-width:70px;background:var(--bg-soft);border:1px solid var(--line);color:var(--text-dim);border-radius:7px;padding:8px 4px;font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;}
+  .provider-tab:hover{border-color:var(--amber);color:var(--text);}
+  .provider-tab.active{background:var(--card-hi);border-color:var(--amber);color:var(--text);}
+  .provider-tab .dot{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;margin-left:5px;vertical-align:middle;}
+  .get-key-link{color:var(--cyan);text-decoration:none;font-family:var(--mono);font-size:11px;}
+  .get-key-link:hover{text-decoration:underline;}
+
+  .keys-list{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:130px;overflow-y:auto;}
+  .key-chip{display:flex;align-items:center;justify-content:space-between;background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:11px;transition:opacity .15s;}
+  .key-chip.inactive{opacity:.4;}
+  .key-chip .x{cursor:pointer;color:var(--red);font-weight:700;padding:0 4px;flex-shrink:0;}
+  .key-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;display:inline-block;flex-shrink:0;}
+  .key-chip .key-left{display:flex;align-items:center;overflow:hidden;min-width:0;}
+  .key-chip .key-toggle{margin-right:8px;accent-color:var(--amber);cursor:pointer;width:14px;height:14px;flex-shrink:0;}
+  .key-chip .key-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* main content */
+  .content-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .content-head h2{margin:0;font-size:15px;}
+  .stat-pills{display:flex;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+  .pill{background:var(--card);border:1px solid var(--line);padding:4px 10px;border-radius:999px;}
+
+  .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:28px;text-align:center;color:var(--text-faint);cursor:pointer;margin-bottom:20px;transition:.15s;background:var(--card);}
+  .dropzone:hover, .dropzone.drag{border-color:var(--amber);color:var(--amber);}
+  .dropzone strong{color:var(--text);}
+
+  .run-bar{margin-bottom:20px;position:sticky;top:66px;z-index:15;}
+  .run-bar-row{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+  .run-bar-row .btn{white-space:nowrap;}
+  @media (max-width:640px){.run-bar-row{align-items:stretch;}.run-bar-row .btn{flex:1;}}
+
+  .sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+  .frame{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative;box-shadow:var(--shadow);}
+  .sprockets{display:flex;justify-content:space-between;padding:4px 8px;background:var(--bg-soft);}
+  .sprockets span{width:6px;height:6px;border-radius:1px;background:var(--line);}
+  .frame-body{padding:12px;}
+  .frame-top{display:flex;gap:10px;margin-bottom:10px;}
+  .thumb{width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex-shrink:0;background:var(--bg-soft);}
+  .fname{font-family:var(--mono);font-size:11px;color:var(--text-dim);word-break:break-all;line-height:1.4;}
+  .status{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:3px 7px;border-radius:999px;margin-top:6px;}
+  .status.pending{background:var(--line-soft);color:var(--text-faint);}
+  .status.processing{background:var(--cyan-dim);color:var(--cyan);}
+  .status.done{background:#7bc38a26;color:var(--green);}
+  .status.error{background:#e2685f26;color:var(--red);}
+  .field-mini{margin-bottom:8px;}
+  .field-mini label{display:flex;justify-content:space-between;font-size:10px;color:var(--text-faint);margin-bottom:4px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;}
+  .field-mini .count{color:var(--text-dim);}
+  .field-mini .count.over{color:var(--red);}
+  .field-mini input{width:100%;font-size:12px;padding:7px 8px;}
+  .tag-stats{font-size:10px;color:var(--text-faint);font-family:var(--mono);margin-top:5px;text-transform:uppercase;letter-spacing:.04em;}
+  .field-row{display:flex;gap:6px;align-items:stretch;}
+  .field-row input{flex:1;min-width:0;}
+  .copy-btn{flex-shrink:0;width:34px;background:var(--bg-soft);border:1px solid var(--line);color:var(--text-dim);border-radius:6px;cursor:pointer;font-size:14px;transition:all .15s;}
+  .copy-btn:hover{border-color:var(--amber);color:var(--amber);}
+  .copy-btn.copied{border-color:var(--green);color:var(--green);}
+  .err-msg{font-size:11px;color:var(--red);margin-top:4px;font-family:var(--mono);}
+
+  .seo-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;flex-shrink:0;}
+  .seo-dot.seo-none{background:var(--line);}
+  .seo-dot.seo-green{background:var(--green);}
+  .seo-dot.seo-amber{background:var(--amber);}
+  .seo-dot.seo-red{background:var(--red);}
+
+  .status-row{display:flex;align-items:center;gap:6px;margin-top:6px;}
+  .regen-btn{flex-shrink:0;width:22px;height:22px;background:var(--bg-soft);border:1px solid var(--line);color:var(--text-dim);border-radius:6px;cursor:pointer;font-size:12px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;}
+  .regen-btn:hover{border-color:var(--amber);color:var(--amber);}
+  .regen-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .regen-btn.spinning{animation:spin .8s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+
+  .empty{color:var(--text-faint);text-align:center;padding:40px 0;font-family:var(--mono);font-size:12px;}
+
+  a.export-link{text-decoration:none;}
+
+  /* ---------- AUTH ---------- */
+  .auth-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .auth-card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 26px;box-shadow:var(--shadow);}
+  .auth-brand{margin-bottom:22px;}
+  .auth-tabs{display:flex;gap:6px;background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;padding:4px;margin-bottom:18px;}
+  .auth-tab{flex:1;background:transparent;border:none;color:var(--text-dim);font-family:var(--sans);font-size:12px;font-weight:600;padding:8px 4px;border-radius:6px;cursor:pointer;transition:all .15s;}
+  .auth-tab:hover{color:var(--text);}
+  .auth-tab.active{background:var(--card-hi);color:var(--text);}
+  .auth-error{background:rgba(239,83,80,.1);border:1px solid var(--red);color:var(--red);border-radius:7px;padding:9px 11px;font-size:12px;margin-bottom:14px;font-family:var(--sans);}
+  .auth-divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--text-faint);font-size:11px;font-family:var(--mono);}
+  .auth-divider::before, .auth-divider::after{content:'';flex:1;height:1px;background:var(--line);}
+  .auth-google-btn{display:flex;align-items:center;justify-content:center;gap:10px;}
+  .user-badge{font-family:var(--mono);font-size:12px;color:var(--text-dim);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+</style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card">
+    <div class="brand auth-brand">
+      <div class="mark">GM</div>
+      <div>
+        <h1>Contact Sheet</h1>
+        <span>Bulk metadata · Multi-provider</span>
+      </div>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="login">Sign In</button>
+      <button class="auth-tab" data-mode="register">Register</button>
+    </div>
+    <div class="auth-error" id="authError" style="display:none;"></div>
+    <label class="field-label">Email</label>
+    <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+    <div style="height:10px"></div>
+    <label class="field-label">Password</label>
+    <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn btn-primary btn-block" id="authSubmitBtn" style="margin-top:14px;">Sign In</button>
+    <div class="auth-divider"><span>or</span></div>
+    <button class="btn btn-block auth-google-btn" id="googleSignInBtn">
+      <svg width="16" height="16" viewBox="0 0 48 48" style="flex-shrink:0;"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.4 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.4 6.1 29.5 4 24 4 16.2 4 9.5 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.2-2.1 13.9-5.4l-6.4-5.4C29.4 34.9 26.8 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.6 5.1C9.4 39.6 16.1 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.4 5.4C39.9 37 44 31 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="hint" id="authHint" style="margin-top:12px;">Your key data and images stay in this browser only — signing in just keeps your saved settings and access to this tool tied to your account.</div>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark">GM</div>
+    <div>
+      <h1>Contact Sheet</h1>
+      <span>Bulk metadata · Gemini API</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <span class="user-badge" id="userBadge"></span>
+    <button class="btn" id="signOutBtn" style="padding:8px 14px;">Sign Out</button>
+    <div class="theme-toggle" id="themeToggle">
+      <span class="lbl">DARK</span>
+      <div class="knob" id="themeKnob">●</div>
+      <span class="lbl" style="opacity:.4">LIGHT</span>
+    </div>
+  </div>
+</div>
+
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="card">
+      <h2 class="collapsible-head" id="platformCardHead" style="cursor:pointer;justify-content:space-between;">
+        <span style="display:flex;align-items:center;gap:8px;"><span style="font-size:14px;">⚙</span>Metadata Settings</span>
+        <span id="platformChevron" style="transition:transform .2s;">⌃</span>
+      </h2>
+      <div id="platformCardBody">
+        <label class="field-label">Export Platform</label>
+        <div class="platform-grid">
+          <button class="platform-btn active" data-platform="general">
+            <span class="platform-icon">✦</span> General
+          </button>
+          <button class="platform-btn" data-platform="adobe">
+            <span class="platform-icon">St</span> Adobe Stock
+          </button>
+          <button class="platform-btn" data-platform="shutterstock">
+            <span class="platform-icon">▤</span> Shutterstock
+          </button>
+          <button class="platform-btn" data-platform="freepik">
+            <span class="platform-icon">F</span> Freepik
+          </button>
+        </div>
+        <div class="hint" id="platformHint">Generic title/tags — no platform-specific formatting or CSV template.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>API Keys · Multi-Provider</h2>
+      <div class="provider-tabs" id="providerTabs">
+        <button class="provider-tab active" data-provider="gemini">Gemini</button>
+        <button class="provider-tab" data-provider="openai">OpenAI</button>
+        <button class="provider-tab" data-provider="mistral">Mistral</button>
+        <button class="provider-tab" data-provider="grok">Grok</button>
+      </div>
+      <div id="providerPanel"></div>
+      <div class="hint" id="allKeysHint" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);"></div>
+    </div>
+
+    <div class="card">
+      <h2>Title Length</h2>
+      <div class="slider-wrap">
+        <div class="slider-head"><span>Max characters</span><span class="val" id="titleValLbl">70</span></div>
+        <input type="range" id="titleSlider" min="0" max="70" value="70">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Tags Length (total)</h2>
+      <div class="slider-head"><span>Target range</span><span class="val" id="tagsValLbl">30–45</span></div>
+      <div class="range-dual">
+        <div class="range-track"></div>
+        <div class="range-fill" id="tagsFill"></div>
+        <input type="range" id="tagsMin" min="10" max="80" value="30">
+        <input type="range" id="tagsMax" min="10" max="80" value="45">
+      </div>
+      <div class="hint">Guides the model's target length for the combined tags string; not a hard truncation.</div>
+    </div>
+
+    <div class="card">
+      <h2>Prefix / Suffix</h2>
+      <label class="field-label">Title prefix</label>
+      <input type="text" id="prefixInput" placeholder="e.g. Stock Photo:">
+      <div style="height:10px"></div>
+      <label class="field-label">Title suffix</label>
+      <input type="text" id="suffixInput" placeholder="e.g. | 4K">
+    </div>
+
+  </aside>
+
+  <!-- MAIN -->
+  <main class="content">
+    <div class="content-head">
+      <h2>Image Queue</h2>
+      <div class="stat-pills">
+        <span class="pill" id="pillTotal">0 images</span>
+        <span class="pill" id="pillDone">0 done</span>
+        <span class="pill" id="pillErr">0 errors</span>
+      </div>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <strong>Click to upload</strong> or drag & drop images here — bulk upload supported (JPG, PNG, WebP, SVG, EPS*)
+      <input type="file" id="fileInput" accept="image/*,.svg,.eps" multiple style="display:none;">
+      <div class="hint" style="margin-top:8px;">*EPS files can't be visually rasterized in-browser — they'll be queued but need converting to PNG/JPG before metadata can be generated for them.</div>
+    </div>
+
+    <div class="card run-bar">
+      <div class="run-bar-row">
+        <button class="btn btn-primary" id="generateBtn">▶ Generate metadata</button>
+        <button class="btn" id="stopBtn" disabled>■ Stop</button>
+        <button class="btn" id="exportBtn">⇩ Export CSV</button>
+        <button class="btn" id="exportZipBtn">⇩ Export ZIP (images + CSV)</button>
+        <button class="btn btn-ghost" id="clearBtn">Clear all images</button>
+      </div>
+      <div class="hint" style="margin-top:10px;margin-bottom:0;">Requests are auto-paced (~4.5s apart) to stay under free-tier RPM limits (5–15 req/min) — a single Gemini key can safely run several hundred images in one day. If a key still gets rate-limited it auto-cools down and retries rather than failing.</div>
+    </div>
+
+    <div class="sheet" id="sheet"></div>
+    <div class="empty" id="emptyMsg">No images yet — upload a batch to begin.</div>
+  </main>
+</div>
+
+</div><!-- /#appRoot -->
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ============================================================================
+// FIREBASE AUTH SETUP — REQUIRED BEFORE LOGIN WILL WORK
+// 1. Create a free project at https://console.firebase.google.com
+// 2. In that project: Build → Authentication → Get started → enable
+//    "Email/Password" and "Google" under Sign-in method.
+// 3. Project settings (gear icon) → General → scroll to "Your apps" →
+//    add a Web app → copy the firebaseConfig object it gives you and
+//    paste its values below, replacing the placeholders.
+// 4. If you host this file somewhere other than Firebase Hosting, add
+//    that domain under Authentication → Settings → Authorized domains,
+//    or Google Sign-In (and email link auth) will be blocked.
+// ============================================================================
+const FIREBASE_CONFIG = {
+  apiKey: "PASTE_YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+
+let authMode = 'login';
+const authOverlay = document.getElementById('authOverlay');
+const appRoot = document.getElementById('appRoot');
+const authError = document.getElementById('authError');
+const authEmail = document.getElementById('authEmail');
+const authPassword = document.getElementById('authPassword');
+const authSubmitBtn = document.getElementById('authSubmitBtn');
+
+function showAuthError(msg){
+  authError.textContent = msg;
+  authError.style.display = 'block';
+}
+function clearAuthError(){ authError.style.display = 'none'; }
+
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    authMode = tab.dataset.mode;
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t === tab));
+    authSubmitBtn.textContent = authMode === 'login' ? 'Sign In' : 'Create Account';
+    clearAuthError();
+  });
+});
+
+authSubmitBtn.addEventListener('click', async () => {
+  clearAuthError();
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) { showAuthError('Enter both email and password.'); return; }
+  if (authMode === 'register' && password.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+
+  authSubmitBtn.disabled = true;
+  authSubmitBtn.textContent = authMode === 'login' ? 'Signing in…' : 'Creating account…';
+  try {
+    if (authMode === 'login') {
+      await auth.signInWithEmailAndPassword(email, password);
+    } else {
+      await auth.createUserWithEmailAndPassword(email, password);
+    }
+  } catch (e) {
+    showAuthError(friendlyAuthError(e));
+  } finally {
+    authSubmitBtn.disabled = false;
+    authSubmitBtn.textContent = authMode === 'login' ? 'Sign In' : 'Create Account';
+  }
+});
+[authEmail, authPassword].forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') authSubmitBtn.click(); }));
+
+document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+  clearAuthError();
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await auth.signInWithPopup(provider);
+  } catch (e) {
+    showAuthError(friendlyAuthError(e));
+  }
+});
+
+document.getElementById('signOutBtn').addEventListener('click', () => auth.signOut());
+
+function friendlyAuthError(e){
+  const map = {
+    'auth/invalid-email': 'That email address looks invalid.',
+    'auth/user-not-found': 'No account found with that email — try Register instead.',
+    'auth/wrong-password': 'Incorrect password.',
+    'auth/email-already-in-use': 'An account already exists with that email — try Sign In instead.',
+    'auth/weak-password': 'Password must be at least 6 characters.',
+    'auth/popup-closed-by-user': 'Google sign-in was closed before completing.',
+    'auth/unauthorized-domain': 'This domain isn\'t authorized for sign-in yet — add it under Firebase Authentication → Settings → Authorized domains.',
+    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'Firebase isn\'t configured yet — paste your Firebase project config into FIREBASE_CONFIG in the code.'
+  };
+  return map[e.code] || e.message || 'Something went wrong — please try again.';
+}
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    authOverlay.style.display = 'none';
+    appRoot.style.display = '';
+    document.getElementById('userBadge').textContent = user.displayName || user.email || 'Signed in';
+  } else {
+    authOverlay.style.display = 'flex';
+    appRoot.style.display = 'none';
+  }
+});
+// ============================================================================
+// END FIREBASE AUTH SETUP
+// ============================================================================
+
+// ---------- THEME ----------
+const root = document.documentElement;
+const themeToggle = document.getElementById('themeToggle');
+themeToggle.addEventListener('click', () => {
+  const cur = root.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  document.querySelectorAll('.theme-toggle .lbl')[0].style.opacity = next === 'dark' ? 1 : .4;
+  document.querySelectorAll('.theme-toggle .lbl')[1].style.opacity = next === 'light' ? 1 : .4;
+});
+
+// ---------- PLATFORM SELECTOR ----------
+let selectedPlatform = 'general';
+
+const PLATFORM_HINTS = {
+  general: 'Generic title/tags — no platform-specific formatting or CSV template.',
+  adobe: 'Follows Adobe Stock\'s official "Tips for effective titles and keywords" guide (helpx.adobe.com): buyer-intent, category-rounded keywords (subject, general+specific, setting, angle, people count, concepts), importance-ordered (first 10 weighted heaviest), up to 49, min ~15 recommended, unique per image. CSV: Filename, Title, Keywords.',
+  shutterstock: 'Follows Shutterstock\'s official Description & Keyword Best Practices: sentence-style description (Who/What/When/Where/Why + mood), 7–50 unique non-repeating keywords. CSV: Filename, Description, Keywords, Categories, Editorial, Mature content, Illustration.',
+  freepik: 'Freepik/Magnific rules: short keyword-rich title, 20–25 keywords. CSV: semicolon-delimited File name; Title; Keywords; Prompt; Model.'
+};
+
+document.getElementById('platformCardHead').addEventListener('click', () => {
+  const body = document.getElementById('platformCardBody');
+  const chevron = document.getElementById('platformChevron');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? 'block' : 'none';
+  chevron.style.transform = collapsed ? 'rotate(0deg)' : 'rotate(180deg)';
+});
+
+document.querySelectorAll('.platform-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedPlatform = btn.dataset.platform;
+    document.getElementById('platformHint').textContent = PLATFORM_HINTS[selectedPlatform];
+  });
+});
+
+function getPlatformPromptRules(platform, titleMax, lo, hi){
+  if (platform === 'adobe') {
+    return `TITLE RULES (per Adobe Stock's official "Tips for effective titles and keywords" guide):
+- Write a brief, clear title that accurately describes the content — no more than ${titleMax} characters (Adobe recommends keeping it under 70).
+- Focus on what's most visually important in the image first — lead with the main subject/action, not minor background detail.
+- Avoid overly technical or gear-heavy terms (e.g. camera/lens jargon, file-format talk).
+- Do NOT reference any brand names, logos, trademarks, intellectual property, artist names, or names of real/identifiable people — describe people generically (e.g. "man", "senior woman", "Black woman") instead.
+- Do NOT include any prefix/suffix text — that is added separately after generation.
+
+KEYWORD RULES (per Adobe Stock's official guide — up to 49 keywords per submission, ranking is driven by relevance and order):
+- Use relevant nouns, adjectives, and concepts specific to THIS exact image — think like a buyer: what would they actually search for to find this content?
+- Cover these categories where genuinely applicable to the image, so the keyword set is well-rounded (skip any category that truly doesn't apply — never invent details that aren't visible):
+  • Separate descriptive elements individually (e.g. "white", "fluffy", "young animal", "puppy" as distinct keywords, not merged phrases)
+  • Both general AND specific terms for the same subject (e.g. "animal", "mammal", "carnivore", "dog")
+  • Location, if identifiable (e.g. "London, England")
+  • Conceptual/emotional keywords (e.g. "solitude", "childhood", "milestone", "freedom")
+  • Number of people (e.g. "one person", "three people", "alone") when people are present
+  • Setting details (indoors/outdoors, day/night, weather/lighting)
+  • Viewpoint or camera angle (e.g. "high-angle view", "aerial view", "portrait")
+  • Demographic/gender description of any people shown, described respectfully and generically (e.g. "senior man", "Latinx teen", "non-binary")
+- Order keywords by importance: put the single most important, most search-relevant keywords in the FIRST 10 positions, since Adobe weighs these most heavily for ranking — then continue with secondary/supporting keywords after.
+- Use each keyword only once — no duplicates, and no near-duplicate padding (e.g. don't list "dog", "dogs", "dog standing", "dog sitting" as separate entries).
+- Only include keywords truly relevant to what's actually shown — do not pad with unrelated terms just to hit a length target.
+- Use lowercase, and use common/local spelling conventions (e.g. "color" not "colour" for US English).
+- Do NOT include trademarks, brand names, or personal/identifying information anywhere in the keyword list.
+- Every title and keyword set must be unique and specifically tailored to what's actually in THIS image — never reuse generic boilerplate phrasing across different images, since distinct, precise metadata is what helps each individual asset rank and get discovered.
+- Format "tags" as a single comma-separated string, with a total combined length between ${lo} and ${hi} characters, and no more than 49 keywords total (aim for at least 15 for strong discoverability).`;
+  }
+  if (platform === 'shutterstock') {
+    return `TITLE RULES (a short, simple label — Shutterstock itself doesn't use this field, but keep it a plain, concise caption, under ${titleMax} characters, no prefix/suffix):
+- Just a brief, plain-language caption of the main subject.
+
+DESCRIPTION RULES (per Shutterstock's official "Description and Keyword Best Practices" — this is what Shutterstock actually uses for search/discovery):
+- Write a unique, detailed sentence or phrase — not a list of words — that captures Who, What, When, Where, and Why, plus the mood/emotion of the image.
+- Include helpful details about angle, focus, setting, etc. where relevant.
+- Do NOT merely list keywords as the description (e.g. "Dog. Pattern. Flowers." is wrong).
+- Do NOT repeat the same words or phrases within the description.
+- Do NOT include links, specific camera/gear information, or trademarks/brand names (these are only allowed for Editorial content).
+- Do NOT include any prefix/suffix text — that is added separately after generation.
+
+KEYWORD RULES (per Shutterstock's official "Description and Keyword Best Practices"):
+- Use specific and unique words (or compound words) that relate directly to what is actually shown or represented in the image — precisely tailored to this individual image, not generic.
+- Include broader topics, feelings, concepts, or associations in addition to literal objects (e.g. for a dog pattern: also include things like "textile," "decorative," "seamless," "creative," not just "dog").
+- Stay between 7 and 50 keywords total (Shutterstock's official minimum and maximum).
+- Do NOT enter unrelated terms or concepts just to pad the list.
+- Do NOT repeat the same word or compound word (e.g. don't list "dog," "dogs," "dog standing," "dog sitting," "dog walking" — this counts as spamming).
+- Do NOT include links, specific camera/gear information, or trademarks (except for Editorial content).
+- Format "tags" as a single comma-separated string, with a total combined length between ${lo} and ${hi} characters.`;
+  }
+  if (platform === 'freepik') {
+    return `TITLE RULES (per Freepik/Magnific contributor guidelines):
+- Write a short, keyword-rich title that clearly names the main subject, around ${Math.min(titleMax,60)} characters or fewer, including the primary keyword naturally.
+- Think like a buyer searching for this asset — avoid vague or overly artistic phrasing.
+- Do NOT include any prefix/suffix text — that is added separately after generation.
+
+KEYWORD RULES (per Freepik/Magnific contributor guidelines):
+- Provide relevant, specific keywords a designer/marketer would actually search for.
+- Freepik allows 5–50 keywords but recommends around 20–25 for best relevance (avoid over-tagging with unrelated terms, which risks rejection).
+- Use each keyword only once, lowercase, no trademarks or personal/identifying information.
+- Format "tags" as a single comma-separated string, with a total combined length between ${lo} and ${hi} characters.`;
+  }
+  // general fallback
+  return `TITLE RULES:
+- Write a concise, descriptive, human-readable title, no more than ${titleMax} characters.
+- Do NOT include any prefix/suffix text — that is added separately after generation.
+
+KEYWORD RULES:
+- Provide relevant, specific lowercase keywords describing the subject, setting, mood, and concepts in the image.
+- Use each keyword only once — no duplicates. Avoid irrelevant or padding terms.
+- Format "tags" as a single comma-separated string, with a total combined length between ${lo} and ${hi} characters.`;
+}
+
+
+let images = []; // {id, file, dataUrl, base64, mime, status, title, tags, error}
+let idCounter = 0;
+
+// ---------- PROVIDERS (multi-provider, auto-failover) ----------
+const PROVIDERS = {
+  gemini: {
+    label: 'Gemini',
+    keyPlaceholder: 'AIzaSy...',
+    getKeyUrl: 'https://aistudio.google.com/apikey',
+    getKeyLabel: 'Get a free Gemini API key →',
+    type: 'gemini',
+    models: [
+      {v:'gemini-flash-latest', l:'gemini-flash-latest (auto-updated)'},
+      {v:'gemini-3.5-flash', l:'gemini-3.5-flash'},
+      {v:'gemini-3.1-flash-lite', l:'gemini-3.1-flash-lite'},
+      {v:'gemini-2.5-flash', l:'gemini-2.5-flash'},
+      {v:'gemini-2.5-flash-lite', l:'gemini-2.5-flash-lite'},
+    ],
+    defaultModel: 'gemini-flash-latest'
+  },
+  openai: {
+    label: 'OpenAI',
+    keyPlaceholder: 'sk-...',
+    getKeyUrl: 'https://platform.openai.com/api-keys',
+    getKeyLabel: 'Get an OpenAI API key →',
+    type: 'openai-compatible',
+    baseUrl: 'https://api.openai.com/v1/chat/completions',
+    models: [
+      {v:'gpt-4o-mini', l:'gpt-4o-mini'},
+      {v:'gpt-4o', l:'gpt-4o'},
+      {v:'gpt-4.1-mini', l:'gpt-4.1-mini'},
+      {v:'gpt-4.1', l:'gpt-4.1'},
+    ],
+    defaultModel: 'gpt-4o-mini'
+  },
+  mistral: {
+    label: 'Mistral',
+    keyPlaceholder: 'Mistral API key',
+    getKeyUrl: 'https://console.mistral.ai/api-keys',
+    getKeyLabel: 'Get a Mistral API key →',
+    type: 'openai-compatible',
+    baseUrl: 'https://api.mistral.ai/v1/chat/completions',
+    models: [
+      {v:'pixtral-12b-2409', l:'pixtral-12b-2409'},
+      {v:'pixtral-large-latest', l:'pixtral-large-latest'},
+    ],
+    defaultModel: 'pixtral-12b-2409'
+  },
+  grok: {
+    label: 'Grok (xAI)',
+    keyPlaceholder: 'xai-...',
+    getKeyUrl: 'https://console.x.ai',
+    getKeyLabel: 'Get a Grok (xAI) API key →',
+    type: 'openai-compatible',
+    baseUrl: 'https://api.x.ai/v1/chat/completions',
+    models: [
+      {v:'grok-2-vision-1212', l:'grok-2-vision-1212'},
+      {v:'grok-4', l:'grok-4'},
+    ],
+    defaultModel: 'grok-2-vision-1212'
+  }
+};
+
+let providerKeys = { gemini: [], openai: [], mistral: [], grok: [] };
+let providerModel = { gemini: PROVIDERS.gemini.defaultModel, openai: PROVIDERS.openai.defaultModel, mistral: PROVIDERS.mistral.defaultModel, grok: PROVIDERS.grok.defaultModel };
+let providerCustomModel = { gemini: '', openai: '', mistral: '', grok: '' };
+let keyCooldowns = {}; // "provider::key" -> timestamp (ms) when it becomes usable again
+let activeProviderTab = 'gemini';
+let globalRotationIndex = 0;
+
+function saveProviders(){
+  try {
+    localStorage.setItem('metadata_gen_provider_keys', JSON.stringify(providerKeys));
+    localStorage.setItem('metadata_gen_provider_models', JSON.stringify({ model: providerModel, custom: providerCustomModel }));
+  } catch (e) {
+    console.error('Could not save API keys (localStorage unavailable)', e);
+  }
+}
+
+function loadProviders(){
+  try {
+    const raw = localStorage.getItem('metadata_gen_provider_keys');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      Object.keys(providerKeys).forEach(p => { if (Array.isArray(parsed[p])) providerKeys[p] = parsed[p]; });
+    } else {
+      // migrate legacy single-provider (Gemini-only) key storage from the old version of this tool
+      const legacy = localStorage.getItem('gemini_metadata_gen_api_keys');
+      if (legacy) providerKeys.gemini = JSON.parse(legacy);
+    }
+    // normalize every entry to {key, active} — older saves stored plain key strings
+    Object.keys(providerKeys).forEach(p => {
+      providerKeys[p] = providerKeys[p].map(item =>
+        typeof item === 'string' ? { key: item, active: true } : { key: item.key, active: item.active !== false }
+      );
+    });
+    const rawM = localStorage.getItem('metadata_gen_provider_models');
+    if (rawM) {
+      const m = JSON.parse(rawM);
+      if (m.model) Object.assign(providerModel, m.model);
+      if (m.custom) Object.assign(providerCustomModel, m.custom);
+    }
+  } catch (e) {
+    // no saved config yet, or storage unavailable — that's fine
+  }
+}
+
+function getProviderModel(provider){
+  const v = providerModel[provider];
+  if (v === '__custom__') return providerCustomModel[provider].trim() || PROVIDERS[provider].defaultModel;
+  return v || PROVIDERS[provider].defaultModel;
+}
+
+// ---------- combined key pool across all providers (only ACTIVE/selected keys participate) ----------
+function allKeyEntries(){
+  const entries = [];
+  Object.keys(providerKeys).forEach(prov => providerKeys[prov].forEach(item => { if (item.active) entries.push({ provider: prov, key: item.key }); }));
+  return entries;
+}
+function anyKeysAdded(){ return Object.values(providerKeys).some(arr => arr.length > 0); }
+function entryId(e){ return e.provider + '::' + e.key; }
+function isEntryAvailable(e){ const id = entryId(e); return !keyCooldowns[id] || Date.now() >= keyCooldowns[id]; }
+function markEntryCooldown(e, ms){ keyCooldowns[entryId(e)] = Date.now() + ms; }
+function earliestCooldownRemaining(){
+  const entries = allKeyEntries();
+  if (entries.length === 0) return 0;
+  let min = Infinity;
+  entries.forEach(e => { const t = keyCooldowns[entryId(e)] || 0; const rem = t - Date.now(); if (rem < min) min = rem; });
+  return Math.max(0, min === Infinity ? 0 : min);
+}
+// Returns the next available key across ALL selected providers, round-robin — this is what makes it
+// auto-switch providers: once every selected Gemini key is cooling down, the same rotation naturally
+// lands on the next selected OpenAI/Mistral/Grok key instead.
+function nextAvailableEntry(){
+  const entries = allKeyEntries();
+  if (entries.length === 0) return null;
+  for (let i = 0; i < entries.length; i++) {
+    const idx = (globalRotationIndex + i) % entries.length;
+    if (isEntryAvailable(entries[idx])) { globalRotationIndex = idx + 1; return entries[idx]; }
+  }
+  return null;
+}
+
+// ---------- PROVIDER TABS UI ----------
+document.querySelectorAll('.provider-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeProviderTab = btn.dataset.provider;
+    renderProviderTabs();
+    renderProviderPanel();
+  });
+});
+
+function renderProviderTabs(){
+  document.querySelectorAll('.provider-tab').forEach(btn => {
+    const prov = btn.dataset.provider;
+    const n = providerKeys[prov].filter(item => item.active).length;
+    btn.classList.toggle('active', prov === activeProviderTab);
+    btn.innerHTML = `${PROVIDERS[prov].label}${n ? '<span class="dot"></span>' : ''}`;
+  });
+  const total = Object.values(providerKeys).reduce((a, arr) => a + arr.length, 0);
+  const selectedTotal = Object.values(providerKeys).reduce((a, arr) => a + arr.filter(item => item.active).length, 0);
+  const activeProviderCount = Object.keys(providerKeys).filter(p => providerKeys[p].some(item => item.active)).length;
+  document.getElementById('allKeysHint').textContent = total
+    ? `${selectedTotal} of ${total} key(s) selected for use, across ${activeProviderCount} provider(s) — selected keys rotate round-robin and auto-switch to the next provider if one is rate-limited or errors out. Untick a key to stop it from being used.`
+    : 'No keys added yet on any provider. Add at least one key below to start generating.';
+}
+
+function renderProviderPanel(){
+  const p = PROVIDERS[activeProviderTab];
+  const panel = document.getElementById('providerPanel');
+  const modelOptions = p.models.map(m => `<option value="${m.v}">${m.l}</option>`).join('')
+    + `<option value="__custom__">Custom model ID…</option>`;
+  panel.innerHTML = `
+    <label class="field-label">Add ${p.label} key(s), one per line or comma-separated</label>
+    <textarea id="providerKeyInput" rows="2" placeholder="${p.keyPlaceholder}"></textarea>
+    <button class="btn btn-block" id="addProviderKeyBtn">+ Add key(s)</button>
+    <div class="keys-list" id="providerKeysList"></div>
+    <div class="hint" id="providerKeysHint"></div>
+    <div style="height:10px"></div>
+    <label class="field-label">${p.label} model</label>
+    <select id="providerModelSelect">${modelOptions}</select>
+    <input type="text" id="providerCustomModelInput" placeholder="e.g. custom-model-id" style="margin-top:8px;display:none;">
+    <div class="hint" style="margin-top:10px;"><a class="get-key-link" href="${p.getKeyUrl}" target="_blank" rel="noopener">${p.getKeyLabel}</a></div>
+  `;
+
+  const modelSel = document.getElementById('providerModelSelect');
+  const customInput = document.getElementById('providerCustomModelInput');
+  modelSel.value = providerModel[activeProviderTab] || p.defaultModel;
+  customInput.value = providerCustomModel[activeProviderTab] || '';
+  customInput.style.display = modelSel.value === '__custom__' ? 'block' : 'none';
+
+  modelSel.addEventListener('change', () => {
+    providerModel[activeProviderTab] = modelSel.value;
+    customInput.style.display = modelSel.value === '__custom__' ? 'block' : 'none';
+    saveProviders();
+  });
+  customInput.addEventListener('input', () => {
+    providerCustomModel[activeProviderTab] = customInput.value;
+    saveProviders();
+  });
+
+  document.getElementById('addProviderKeyBtn').addEventListener('click', () => {
+    const input = document.getElementById('providerKeyInput');
+    const raw = input.value.split(/[\n,]/).map(k => k.trim()).filter(Boolean);
+    raw.forEach(k => { if (!providerKeys[activeProviderTab].some(item => item.key === k)) providerKeys[activeProviderTab].push({ key: k, active: true }); });
+    input.value = '';
+    renderProviderKeysList();
+    renderProviderTabs();
+    saveProviders();
+  });
+
+  renderProviderKeysList();
+}
+
+function renderProviderKeysList(){
+  const keys = providerKeys[activeProviderTab];
+  const list = document.getElementById('providerKeysList');
+  const hint = document.getElementById('providerKeysHint');
+  if (!list || !hint) return;
+  list.innerHTML = '';
+  keys.forEach((item, i) => {
+    const k = item.key;
+    const chip = document.createElement('div');
+    chip.className = 'key-chip' + (item.active ? '' : ' inactive');
+    const masked = k.length > 10 ? k.slice(0,4) + '••••••' + k.slice(-4) : '••••••';
+    const cdId = activeProviderTab + '::' + k;
+    const cooldownMs = (keyCooldowns[cdId] || 0) - Date.now();
+    const isCoolingDown = cooldownMs > 0;
+    const dotColor = isCoolingDown ? 'background:var(--red)' : '';
+    const statusNote = isCoolingDown ? ` <span style="color:var(--red)">(limited, ${Math.ceil(cooldownMs/1000)}s)</span>` : '';
+    chip.innerHTML = `<span class="key-left"><input type="checkbox" class="key-toggle" data-i="${i}" ${item.active ? 'checked' : ''} title="${item.active ? 'Selected — used for generation' : 'Not selected — saved but unused'}"><span class="dot" style="${dotColor}"></span><span class="key-text">${masked}${statusNote}</span></span><span class="x" data-i="${i}">✕</span>`;
+    chip.querySelector('.key-toggle').addEventListener('change', (e) => {
+      providerKeys[activeProviderTab][i].active = e.target.checked;
+      renderProviderKeysList();
+      renderProviderTabs();
+      saveProviders();
+    });
+    chip.querySelector('.x').addEventListener('click', () => {
+      providerKeys[activeProviderTab].splice(i, 1);
+      renderProviderKeysList();
+      renderProviderTabs();
+      saveProviders();
+    });
+    list.appendChild(chip);
+  });
+  const activeN = keys.filter(item => item.active).length;
+  hint.textContent = keys.length
+    ? `${activeN} of ${keys.length} ${p_label(activeProviderTab)} key(s) selected for use — tick/untick to choose which ones generate metadata. Saved locally in this browser.`
+    : `No ${p_label(activeProviderTab)} keys yet. Keys are saved locally in this browser so you won't need to re-enter them next time.`;
+}
+function p_label(prov){ return PROVIDERS[prov].label; }
+
+setInterval(() => {
+  const anyCooling = Object.keys(keyCooldowns).some(k => keyCooldowns[k] > Date.now());
+  if (anyCooling) { renderProviderKeysList(); renderProviderTabs(); }
+}, 1000);
+
+// ---------- PROVIDER API DISPATCH ----------
+// Normalizes each provider's response into { textOut, finishReason } or { rateLimited, cooldownMs }
+async function callProviderAPI(entry, prompt, img){
+  const conf = PROVIDERS[entry.provider];
+  const model = getProviderModel(entry.provider);
+  const key = entry.key;
+
+  if (conf.type === 'gemini') {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: img.mime, data: img.base64 } }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.4,
+          responseMimeType: 'application/json',
+          maxOutputTokens: 1024,
+          thinkingConfig: { thinkingBudget: 0 }
+        }
+      })
+    });
+    if (resp.status === 429) {
+      const retryAfterHeader = resp.headers.get('Retry-After');
+      return { rateLimited: true, cooldownMs: retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : 60000 };
+    }
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${errBody.slice(0,180)}`);
+    }
+    const data = await resp.json();
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    const textOut = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    return { textOut, finishReason };
+  }
+
+  // openai-compatible: OpenAI, Mistral, Grok (xAI) all speak the same chat/completions shape
+  const resp = await fetch(conf.baseUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0.4,
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${img.mime};base64,${img.base64}` } }
+        ]
+      }]
+    })
+  });
+  if (resp.status === 429) {
+    const retryAfterHeader = resp.headers.get('Retry-After');
+    return { rateLimited: true, cooldownMs: retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : 60000 };
+  }
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`HTTP ${resp.status}: ${errBody.slice(0,180)}`);
+  }
+  const data = await resp.json();
+  const finishReason = data?.choices?.[0]?.finish_reason;
+  const textOut = data?.choices?.[0]?.message?.content || '';
+  return { textOut, finishReason };
+}
+
+// ---------- SLIDERS ----------
+const titleSlider = document.getElementById('titleSlider');
+const titleValLbl = document.getElementById('titleValLbl');
+titleSlider.addEventListener('input', () => { titleValLbl.textContent = titleSlider.value; renderSheet(); });
+
+const tagsMin = document.getElementById('tagsMin');
+const tagsMax = document.getElementById('tagsMax');
+const tagsValLbl = document.getElementById('tagsValLbl');
+const tagsFill = document.getElementById('tagsFill');
+function updateTagsFill(){
+  let lo = parseInt(tagsMin.value), hi = parseInt(tagsMax.value);
+  if (lo > hi) { [lo,hi] = [hi,lo]; }
+  const range = parseInt(tagsMin.max) - parseInt(tagsMin.min);
+  const leftPct = ((lo - parseInt(tagsMin.min)) / range) * 100;
+  const rightPct = ((hi - parseInt(tagsMin.min)) / range) * 100;
+  tagsFill.style.left = leftPct + '%';
+  tagsFill.style.width = (rightPct - leftPct) + '%';
+  tagsValLbl.textContent = `${lo}–${hi}`;
+  updateTagsZIndex();
+}
+// When both handles land on the same value they visually overlap into a single dot, and
+// whichever <input> sits on top in the DOM would otherwise permanently swallow every future
+// click there — trapping the other handle and making the range impossible to reopen. To avoid
+// that, dynamically hand top priority to whichever handle needs to move away from the crowd:
+// stuck near the top of the track → prioritize the min handle so it can be pulled back down;
+// stuck near the bottom → prioritize the max handle so it can be pushed back up.
+function updateTagsZIndex(){
+  const min = parseInt(tagsMin.min), max = parseInt(tagsMin.max);
+  const mid = (min + max) / 2;
+  const lo = parseInt(tagsMin.value), hi = parseInt(tagsMax.value);
+  if (lo >= hi) {
+    if (lo >= mid) { tagsMin.style.zIndex = 3; tagsMax.style.zIndex = 1; }
+    else { tagsMin.style.zIndex = 1; tagsMax.style.zIndex = 3; }
+  } else {
+    tagsMin.style.zIndex = 1;
+    tagsMax.style.zIndex = 2;
+  }
+}
+tagsMin.addEventListener('input', () => { if(parseInt(tagsMin.value) > parseInt(tagsMax.value)) tagsMin.value = tagsMax.value; updateTagsFill(); renderSheet(); });
+tagsMax.addEventListener('input', () => { if(parseInt(tagsMax.value) < parseInt(tagsMin.value)) tagsMax.value = tagsMin.value; updateTagsFill(); renderSheet(); });
+updateTagsFill();
+
+// ---------- UPLOAD ----------
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(fileList){
+  Array.from(fileList).forEach(file => {
+    const nameLower = file.name.toLowerCase();
+    const isSvg = file.type === 'image/svg+xml' || nameLower.endsWith('.svg');
+    const isEps = nameLower.endsWith('.eps') || file.type === 'application/postscript';
+    const isRaster = file.type.startsWith('image/') && !isSvg;
+
+    if (isEps) {
+      // EPS can't be rasterized client-side (no Ghostscript in the browser) — queue it flagged as unsupported
+      images.push({
+        id: ++idCounter, file, dataUrl: EPS_PLACEHOLDER_ICON, base64: '', mime: '',
+        status: 'error', title: '', tags: '', description: '',
+        error: 'EPS files can\'t be rasterized in-browser. Convert to PNG/JPG (e.g. via Illustrator export or Ghostscript) and re-upload to generate metadata.',
+        unsupported: true
+      });
+      renderSheet();
+      return;
+    }
+
+    if (isSvg) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        rasterizeSvg(e.target.result, file);
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    if (!isRaster) return; // skip unrecognized file types silently
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target.result;
+      const base64 = dataUrl.split(',')[1];
+      images.push({
+        id: ++idCounter, file, dataUrl, base64, mime: file.type,
+        status: 'pending', title: '', tags: '', description: '', error: ''
+      });
+      renderSheet();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Converts SVG source text into a rasterized PNG (Gemini's vision input doesn't accept SVG directly)
+function rasterizeSvg(svgText, file){
+  const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+  const img = new Image();
+  img.onload = () => {
+    const targetSize = 1024;
+    let w = img.naturalWidth || targetSize;
+    let h = img.naturalHeight || targetSize;
+    const scale = Math.min(targetSize / w, targetSize / h, 4); // upscale small SVGs a bit, cap at 4x
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; // flatten transparency onto white so Gemini sees a clean image
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const pngDataUrl = canvas.toDataURL('image/png');
+    const base64 = pngDataUrl.split(',')[1];
+    images.push({
+      id: ++idCounter, file, dataUrl: pngDataUrl, base64, mime: 'image/png',
+      status: 'pending', title: '', tags: '', description: '', error: ''
+    });
+    renderSheet();
+  };
+  img.onerror = () => {
+    images.push({
+      id: ++idCounter, file, dataUrl: EPS_PLACEHOLDER_ICON, base64: '', mime: '',
+      status: 'error', title: '', tags: '', description: '',
+      error: 'Could not parse this SVG file for rasterization.',
+      unsupported: true
+    });
+    renderSheet();
+  };
+  img.src = svgDataUrl;
+}
+
+const EPS_PLACEHOLDER_ICON = 'data:image/svg+xml;base64,' + btoa(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 70">
+  <rect width="70" height="70" rx="8" fill="#2b2f36"/>
+  <text x="35" y="40" font-family="monospace" font-size="14" fill="#9aa0a8" text-anchor="middle">FILE</text>
+</svg>`);
+
+// ---------- RENDER SHEET ----------
+const sheet = document.getElementById('sheet');
+const emptyMsg = document.getElementById('emptyMsg');
+
+function renderSheet(){
+  emptyMsg.style.display = images.length ? 'none' : 'block';
+  sheet.innerHTML = '';
+  const titleMax = parseInt(titleSlider.value);
+  let tagLo = parseInt(tagsMin.value), tagHi = parseInt(tagsMax.value);
+  if (tagLo > tagHi) [tagLo, tagHi] = [tagHi, tagLo];
+  images.forEach(img => {
+    const frame = document.createElement('div');
+    frame.className = 'frame';
+    const titleLen = img.title.length;
+    const tagsLen = img.tags.length;
+    const titleColor = qualityColor(titleLen, titleMax);
+    const tagsColor = tagsQualityColor(tagsLen, tagLo, tagHi);
+    frame.innerHTML = `
+      <div class="sprockets">${'<span></span>'.repeat(10)}</div>
+      <div class="frame-body">
+        <div class="frame-top">
+          <img class="thumb" src="${img.dataUrl}">
+          <div style="flex:1;min-width:0;">
+            <div class="fname">${escapeHtml(img.file.name)}</div>
+            <div class="status-row">
+              <div class="status ${img.status}">${statusLabel(img.status)}</div>
+              ${!img.unsupported ? `<button class="regen-btn" data-regen-id="${img.id}" title="Regenerate metadata for this image" ${(img.status === 'processing' || bulkRunning) ? 'disabled' : ''}>↻</button>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="field-mini">
+          <label><span><span class="seo-dot seo-${titleColor}" title="${seoTooltip('title', titleColor)}"></span>Title</span><span class="count ${titleLen > titleMax ? 'over' : ''}">${titleLen}/${titleMax}</span></label>
+          <div class="field-row">
+            <input type="text" data-id="${img.id}" data-field="title" value="${escapeHtml(img.title)}">
+            <button class="copy-btn" data-copy-id="${img.id}" data-copy-field="title" title="Copy title">⧉</button>
+          </div>
+        </div>
+        <div class="field-mini">
+          <label><span><span class="seo-dot seo-${tagsColor}" title="${seoTooltip('tags', tagsColor)}"></span>Tags</span></label>
+          <div class="field-row">
+            <input type="text" data-id="${img.id}" data-field="tags" value="${escapeHtml(img.tags)}">
+            <button class="copy-btn" data-copy-id="${img.id}" data-copy-field="tags" title="Copy tags">⧉</button>
+          </div>
+          <div class="tag-stats">${countTags(img.tags)} tags · ${tagsLen} chars</div>
+        </div>
+        ${selectedPlatform === 'shutterstock' ? `
+        <div class="field-mini">
+          <label><span>Description</span><span class="count">${(img.description||'').length} chars</span></label>
+          <div class="field-row">
+            <input type="text" data-id="${img.id}" data-field="description" value="${escapeHtml(img.description||'')}">
+            <button class="copy-btn" data-copy-id="${img.id}" data-copy-field="description" title="Copy description">⧉</button>
+          </div>
+        </div>` : ''}
+        ${img.error ? `<div class="err-msg">${escapeHtml(img.error)}</div>` : ''}
+      </div>
+    `;
+    sheet.appendChild(frame);
+  });
+  sheet.querySelectorAll('input[data-field]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const item = images.find(i => i.id == inp.dataset.id);
+      if (item) item[inp.dataset.field] = inp.value;
+      updateStats();
+      if (inp.dataset.field === 'title') {
+        const counter = inp.closest('.field-mini').querySelector('.count');
+        counter.textContent = `${inp.value.length}/${titleMax}`;
+        counter.classList.toggle('over', inp.value.length > titleMax);
+        const dot = inp.closest('.field-mini').querySelector('.seo-dot');
+        const color = qualityColor(inp.value.length, titleMax);
+        dot.className = `seo-dot seo-${color}`;
+        dot.title = seoTooltip('title', color);
+      } else if (inp.dataset.field === 'tags') {
+        const statsEl = inp.closest('.field-mini').querySelector('.tag-stats');
+        statsEl.textContent = `${countTags(inp.value)} tags · ${inp.value.length} chars`;
+        let lo2 = parseInt(tagsMin.value), hi2 = parseInt(tagsMax.value);
+        if (lo2 > hi2) [lo2, hi2] = [hi2, lo2];
+        const dot = inp.closest('.field-mini').querySelector('.seo-dot');
+        const color = tagsQualityColor(inp.value.length, lo2, hi2);
+        dot.className = `seo-dot seo-${color}`;
+        dot.title = seoTooltip('tags', color);
+      } else if (inp.dataset.field === 'description') {
+        const counter = inp.closest('.field-mini').querySelector('.count');
+        counter.textContent = `${inp.value.length} chars`;
+      }
+    });
+  });
+  sheet.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const inp = sheet.querySelector(`input[data-id="${btn.dataset.copyId}"][data-field="${btn.dataset.copyField}"]`);
+      if (!inp) return;
+      copyToClipboard(inp.value, btn);
+    });
+  });
+  sheet.querySelectorAll('.regen-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = images.find(i => i.id == btn.dataset.regenId);
+      if (item) regenerateSingle(item);
+    });
+  });
+  updateStats();
+}
+
+// ---------- SEO-STYLE QUALITY INDICATOR (Google-search-friendly traffic light) ----------
+// green = uses the available character budget well; amber = too short; red = over the limit
+function qualityColor(len, max, minRatio = 0.4){
+  if (len === 0) return 'none';
+  if (max <= 0) return len > 0 ? 'green' : 'none';
+  if (len > max) return 'red';
+  if (len < max * minRatio) return 'amber';
+  return 'green';
+}
+function tagsQualityColor(len, lo, hi){
+  if (len === 0) return 'none';
+  if (len < lo) return 'amber';
+  if (len > hi) return 'red';
+  return 'green';
+}
+function seoTooltip(kind, color){
+  const map = {
+    title: {
+      green: 'Good length — makes solid use of the available characters without getting cut off.',
+      amber: 'A bit short — could use more of the available character budget for better discoverability.',
+      red: 'Too long — likely to get truncated in search results/listings.',
+      none: 'No title yet.'
+    },
+    tags: {
+      green: 'Good — within your target tag-length range.',
+      amber: 'Too few characters — under your target range, may under-tag the image.',
+      red: 'Too many characters — over your target range, risks looking spammy.',
+      none: 'No tags yet.'
+    }
+  };
+  return map[kind][color];
+}
+
+function copyToClipboard(text, btn){
+  const done = () => {
+    const original = btn.textContent;
+    btn.textContent = '✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+function statusLabel(s){
+  return {pending:'Pending', processing:'Processing…', done:'Done', error:'Error'}[s] || s;
+}
+function countTags(tagsStr){
+  if (!tagsStr) return 0;
+  return tagsStr.split(',').map(t => t.trim()).filter(Boolean).length;
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function updateStats(){
+  document.getElementById('pillTotal').textContent = `${images.length} images`;
+  document.getElementById('pillDone').textContent = `${images.filter(i=>i.status==='done').length} done`;
+  document.getElementById('pillErr').textContent = `${images.filter(i=>i.status==='error').length} errors`;
+}
+
+// ---------- CLEAR ----------
+document.getElementById('clearBtn').addEventListener('click', () => {
+  images = [];
+  renderSheet();
+});
+
+// ---------- GENERATE ----------
+const generateBtn = document.getElementById('generateBtn');
+const stopBtn = document.getElementById('stopBtn');
+let stopRequested = false;
+let bulkRunning = false;
+
+stopBtn.addEventListener('click', () => {
+  stopRequested = true;
+  stopBtn.textContent = 'Stopping…';
+  stopBtn.disabled = true;
+});
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Runs the full generate-with-failover flow for a single image. Reads current slider/prefix/
+// platform settings fresh each call, so it works the same whether called from the bulk loop
+// or from an individual image's regenerate (↻) button.
+async function generateMetadataForImage(img){
+  const totalKeys = allKeyEntries().length;
+  if (totalKeys === 0) {
+    alert(anyKeysAdded()
+      ? 'None of your saved API keys are selected. Tick at least one key in the API Keys panel to use it for generation.'
+      : 'Add at least one API key first (Gemini, OpenAI, Mistral, or Grok).');
+    return;
+  }
+  if (img.unsupported) return;
+
+  img.status = 'processing';
+  img.error = '';
+  renderSheet();
+
+  const titleMax = parseInt(titleSlider.value);
+  let lo = parseInt(tagsMin.value), hi = parseInt(tagsMax.value);
+  if (lo > hi) [lo,hi] = [hi,lo];
+  const prefix = document.getElementById('prefixInput').value;
+  const suffix = document.getElementById('suffixInput').value;
+
+  const platformNames = { general: 'a general stock/creative asset library', adobe: 'Adobe Stock', shutterstock: 'Shutterstock', freepik: 'Freepik/Magnific' };
+  const jsonShape = selectedPlatform === 'shutterstock'
+    ? `{"title": "string", "description": "string", "tags": "comma, separated, keyword, list"}`
+    : `{"title": "string", "tags": "comma, separated, keyword, list"}`;
+  const prompt = `You are a metadata specialist writing titles and keywords for ${platformNames[selectedPlatform]}. Analyze the attached image and respond ONLY with a raw JSON object (no markdown fences, no commentary) in exactly this shape:
+${jsonShape}
+
+${getPlatformPromptRules(selectedPlatform, titleMax, lo, hi)}
+- Do not include quotation marks inside the values. Do not wrap the JSON in backticks.`;
+
+  let attempt = 0;
+  const maxAttempts = Math.max(6, totalKeys * 2 + 2);
+  let succeeded = false;
+  let lastErrorMsg = '';
+
+  while (attempt < maxAttempts && !succeeded && !stopRequested) {
+    attempt++;
+    const entry = nextAvailableEntry();
+
+    if (!entry) {
+      // every key on every provider is currently cooling down — wait for the earliest one to free up
+      const wait = Math.min(30000, earliestCooldownRemaining() || 5000);
+      img.status = 'processing';
+      img.error = `All keys rate-limited — waiting ${Math.round(wait/1000)}s for one to free up…`;
+      renderSheet();
+      await sleep(wait);
+      continue;
+    }
+
+    const providerLabel = PROVIDERS[entry.provider].label;
+
+    try {
+      const result = await callProviderAPI(entry, prompt, img);
+
+      if (result.rateLimited) {
+        markEntryCooldown(entry, result.cooldownMs);
+        renderProviderKeysList();
+        renderProviderTabs();
+        img.status = 'processing';
+        img.error = `${providerLabel} key hit its limit — switched to the next available key/provider…`;
+        renderSheet();
+        continue; // immediately try the next available key (possibly a different provider), no wasted wait
+      }
+
+      const { textOut, finishReason } = result;
+      let parsed;
+      try {
+        parsed = JSON.parse(textOut);
+      } catch(e) {
+        const match = textOut.match(/\{[\s\S]*\}/);
+        if (match) {
+          parsed = JSON.parse(match[0]);
+        } else {
+          const reasonNote = finishReason && finishReason !== 'STOP' ? ` (finishReason: ${finishReason})` : '';
+          const snippet = textOut ? textOut.slice(0, 120) : '[empty response]';
+          throw new Error(`Could not parse ${providerLabel} response as JSON${reasonNote}: ${snippet}`);
+        }
+      }
+
+      let finalTitle = `${prefix ? prefix + ' ' : ''}${(parsed.title || '').trim()}${suffix ? ' ' + suffix : ''}`.trim();
+      if (finalTitle.length > titleMax) finalTitle = finalTitle.slice(0, titleMax);
+
+      img.title = finalTitle;
+      img.tags = (parsed.tags || '').toString().trim();
+      img.description = (parsed.description || '').toString().trim();
+      img.status = 'done';
+      img.error = '';
+      succeeded = true;
+    } catch (err) {
+      // Don't give up on the whole image after one bad key/provider — cool this entry down
+      // briefly and let the next attempt automatically try a different key or provider.
+      lastErrorMsg = `[${providerLabel}] ${err.message || String(err)}`;
+      markEntryCooldown(entry, 20000);
+      renderProviderKeysList();
+      renderProviderTabs();
+      img.status = 'processing';
+      img.error = `${lastErrorMsg} — trying another key/provider…`;
+      renderSheet();
+      continue;
+    }
+  }
+
+  if (!succeeded && img.status !== 'done') {
+    img.status = 'error';
+    img.error = lastErrorMsg || `Gave up after ${attempt} attempts — all keys may be rate-limited or over quota.`;
+  }
+  renderSheet();
+}
+
+// Regenerates metadata for one image only, triggered by its ↻ button.
+async function regenerateSingle(img){
+  if (img.unsupported || img.status === 'processing' || bulkRunning) return;
+  await generateMetadataForImage(img);
+}
+
+generateBtn.addEventListener('click', async () => {
+  const totalKeys = allKeyEntries().length;
+  if (totalKeys === 0) {
+    alert(anyKeysAdded()
+      ? 'None of your saved API keys are selected. Tick at least one key in the API Keys panel to use it for generation.'
+      : 'Add at least one API key first (Gemini, OpenAI, Mistral, or Grok).');
+    return;
+  }
+  if (images.length === 0) { alert('Upload at least one image first.'); return; }
+
+  generateBtn.disabled = true;
+  generateBtn.textContent = 'Generating…';
+  stopRequested = false;
+  bulkRunning = true;
+  stopBtn.disabled = false;
+  stopBtn.textContent = '■ Stop';
+
+  // Auto-paced delay: ~4.5s between requests keeps a single free-tier key safely under
+  // the ~5–15 requests/minute limit. With more keys/providers in rotation, the load is
+  // already spread across them, so the per-request wait can shrink proportionally.
+  const SAFE_KEY_DELAY_MS = 4500;
+  const delayMs = Math.max(300, Math.round(SAFE_KEY_DELAY_MS / totalKeys));
+
+  for (const img of images) {
+    if (stopRequested) break;
+    if (img.status === 'done' || img.unsupported) continue;
+
+    if (delayMs > 0) await sleep(delayMs);
+    if (stopRequested) { img.status = 'pending'; break; }
+
+    await generateMetadataForImage(img);
+  }
+
+  images.forEach(img => { if (img.status === 'processing') img.status = 'pending'; });
+  bulkRunning = false;
+  renderSheet();
+
+  generateBtn.disabled = false;
+  generateBtn.textContent = '▶ Generate metadata';
+  stopBtn.disabled = true;
+  stopBtn.textContent = '■ Stop';
+  stopRequested = false;
+});
+
+// ---------- EXPORT CSV ----------
+// Builds CSV content matching the selected export platform's expected import format
+function buildPlatformCsv(imageList, nameFn){
+  const csvEscape = v => `"${String(v).replace(/"/g, '""')}"`;
+
+  if (selectedPlatform === 'adobe') {
+    const header = ['Filename', 'Title', 'Keywords'];
+    const rows = imageList.map(img => [nameFn(img), img.title, img.tags]);
+    return [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\n');
+  }
+
+  if (selectedPlatform === 'shutterstock') {
+    const header = ['Filename', 'Description', 'Keywords', 'Categories', 'Editorial', 'Mature content', 'Illustration'];
+    const rows = imageList.map(img => {
+      const isVector = /\.(svg|eps|ai)$/i.test(img.file.name);
+      return [nameFn(img), img.title, img.tags, '', 'no', 'no', isVector ? 'yes' : 'no'];
+    });
+    return [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\n');
+  }
+
+  if (selectedPlatform === 'freepik') {
+    // Freepik/Magnific CSV is semicolon-delimited: File name; Title; Keywords; Prompt; Model
+    const fpEscape = v => `"${String(v).replace(/"/g, '""')}"`;
+    const header = ['File name', 'Title', 'Keywords', 'Prompt', 'Model'];
+    const rows = imageList.map(img => [nameFn(img), img.title, img.tags, '', '']);
+    return [header, ...rows].map(r => r.map(fpEscape).join(';')).join('\n');
+  }
+
+  // general fallback
+  const header = ['Filename', 'Title', 'Tags', 'Title Length', 'Tags Length', 'Status'];
+  const rows = imageList.map(img => [nameFn(img), img.title, img.tags, img.title.length, img.tags.length, img.status]);
+  return [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\n');
+}
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if (images.length === 0) { alert('No images to export.'); return; }
+  const csv = buildPlatformCsv(images, img => img.file.name);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `image-metadata-${selectedPlatform}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// ---------- EXPORT ZIP (images + CSV) ----------
+document.getElementById('exportZipBtn').addEventListener('click', async () => {
+  if (images.length === 0) { alert('No images to export.'); return; }
+  if (typeof JSZip === 'undefined') { alert('ZIP library failed to load — check your connection and try again.'); return; }
+
+  const zipBtn = document.getElementById('exportZipBtn');
+  zipBtn.disabled = true;
+  zipBtn.textContent = 'Zipping…';
+
+  try {
+    const zip = new JSZip();
+    const imgFolder = zip.folder('images');
+
+    // track used names to avoid collisions inside the zip, and remember the mapping for the CSV
+    const usedNames = new Set();
+    const nameMap = new Map();
+    images.forEach(img => {
+      let name = img.file.name;
+      let base = name, ext = '';
+      const dot = name.lastIndexOf('.');
+      if (dot > -1) { base = name.slice(0, dot); ext = name.slice(dot); }
+      let candidate = name, n = 1;
+      while (usedNames.has(candidate)) { candidate = `${base}(${n++})${ext}`; }
+      usedNames.add(candidate);
+      nameMap.set(img.id, candidate);
+
+      if (img.base64) {
+        imgFolder.file(candidate, img.base64, { base64: true });
+      }
+    });
+
+    const csv = buildPlatformCsv(images, img => nameMap.get(img.id));
+    zip.file(`metadata-${selectedPlatform}.csv`, csv);
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'image-metadata-bundle.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Failed to build ZIP: ' + (err.message || err));
+  } finally {
+    zipBtn.disabled = false;
+    zipBtn.textContent = '⇩ Export ZIP (images + CSV)';
+  }
+});
+
+loadProviders();
+renderProviderTabs();
+renderProviderPanel();
+renderSheet();
+</script>
+</body>
+</html>
