@@ -164,7 +164,9 @@
 
   /* ---------- AUTH ---------- */
   .auth-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
-  .auth-card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 26px;box-shadow:var(--shadow);}
+  .auth-card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 26px;box-shadow:var(--shadow);position:relative;}
+  .auth-close{position:absolute;top:14px;right:14px;width:26px;height:26px;background:var(--bg-soft);border:1px solid var(--line);color:var(--text-dim);border-radius:6px;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .auth-close:hover{border-color:var(--red);color:var(--red);}
   .auth-brand{margin-bottom:22px;}
   .auth-tabs{display:flex;gap:6px;background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;padding:4px;margin-bottom:18px;}
   .auth-tab{flex:1;background:transparent;border:none;color:var(--text-dim);font-family:var(--sans);font-size:12px;font-weight:600;padding:8px 4px;border-radius:6px;cursor:pointer;transition:all .15s;}
@@ -179,9 +181,10 @@
 </head>
 <body>
 
-<!-- AUTH OVERLAY -->
-<div class="auth-overlay" id="authOverlay">
+<!-- AUTH MODAL (hidden until user clicks Sign In, or tries to generate while signed out) -->
+<div class="auth-overlay" id="authOverlay" style="display:none;">
   <div class="auth-card">
+    <button class="auth-close" id="authCloseBtn" title="Close">✕</button>
     <div class="brand auth-brand">
       <div class="mark">GM</div>
       <div>
@@ -205,11 +208,11 @@
       <svg width="16" height="16" viewBox="0 0 48 48" style="flex-shrink:0;"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.4 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.4 6.1 29.5 4 24 4 16.2 4 9.5 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.2-2.1 13.9-5.4l-6.4-5.4C29.4 34.9 26.8 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.6 5.1C9.4 39.6 16.1 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.4 5.4C39.9 37 44 31 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
       Sign in with Google
     </button>
-    <div class="hint" id="authHint" style="margin-top:12px;">Your key data and images stay in this browser only — signing in just keeps your saved settings and access to this tool tied to your account.</div>
+    <div class="hint" id="authHint" style="margin-top:12px;">Your key data and images stay in this browser only — signing in just keeps your saved settings and access to this tool tied to your account. You can browse freely; signing in is only needed when generating metadata.</div>
   </div>
 </div>
 
-<div id="appRoot" style="display:none;">
+<div id="appRoot">
 
 <div class="topbar">
   <div class="brand">
@@ -220,8 +223,7 @@
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:14px;">
-    <span class="user-badge" id="userBadge"></span>
-    <button class="btn" id="signOutBtn" style="padding:8px 14px;">Sign Out</button>
+    <div id="topbarAuthArea" style="display:flex;align-items:center;gap:10px;"></div>
     <div class="theme-toggle" id="themeToggle">
       <span class="lbl">DARK</span>
       <div class="knob" id="themeKnob">●</div>
@@ -355,16 +357,7 @@
 //    or Google Sign-In (and email link auth) will be blocked.
 // ============================================================================
 const FIREBASE_CONFIG = {
-  apiKey: "// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCGEbYpezy6T5H01JiGBPW-KqEkAiBHhgE",
-  authDomain: "metadata-547c3.firebaseapp.com",
-  projectId: "metadata-547c3",
-  storageBucket: "metadata-547c3.firebasestorage.app",
-  messagingSenderId: "609440764460",
-  appId: "1:609440764460:web:93328510781cd0cc4ff789",
-  measurementId: "G-8YWG6YZV8B"
-};",
+  apiKey: "PASTE_YOUR_FIREBASE_API_KEY",
   authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
   projectId: "YOUR_PROJECT_ID",
   storageBucket: "YOUR_PROJECT_ID.appspot.com",
@@ -376,18 +369,35 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 
 let authMode = 'login';
+let currentUser = null;
 const authOverlay = document.getElementById('authOverlay');
 const appRoot = document.getElementById('appRoot');
 const authError = document.getElementById('authError');
 const authEmail = document.getElementById('authEmail');
 const authPassword = document.getElementById('authPassword');
 const authSubmitBtn = document.getElementById('authSubmitBtn');
+const topbarAuthArea = document.getElementById('topbarAuthArea');
 
 function showAuthError(msg){
   authError.textContent = msg;
   authError.style.display = 'block';
 }
 function clearAuthError(){ authError.style.display = 'none'; }
+
+// The app itself is always visible/usable — this modal only opens when the person
+// clicks "Sign In" in the top bar, or tries to Generate metadata while signed out.
+function openAuthModal(){ clearAuthError(); authOverlay.style.display = 'flex'; }
+function closeAuthModal(){ authOverlay.style.display = 'none'; }
+document.getElementById('authCloseBtn').addEventListener('click', closeAuthModal);
+authOverlay.addEventListener('click', (e) => { if (e.target === authOverlay) closeAuthModal(); });
+
+// Call this before any action that requires a signed-in user (e.g. Generate metadata).
+// Returns true if already signed in; otherwise opens the sign-in modal and returns false.
+function requireAuth(){
+  if (currentUser) return true;
+  openAuthModal();
+  return false;
+}
 
 document.querySelectorAll('.auth-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -428,35 +438,48 @@ document.getElementById('googleSignInBtn').addEventListener('click', async () =>
   try {
     await auth.signInWithPopup(provider);
   } catch (e) {
-    showAuthError(friendlyAuthError(e));
+    // Popups get blocked by some browsers/extensions — fall back to a full-page redirect flow instead of just failing.
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+      try { await auth.signInWithRedirect(provider); } catch (e2) { showAuthError(friendlyAuthError(e2)); }
+    } else {
+      showAuthError(friendlyAuthError(e));
+    }
   }
 });
-
-document.getElementById('signOutBtn').addEventListener('click', () => auth.signOut());
+// Picks up the result if signInWithRedirect was used (page reloads after Google redirects back)
+auth.getRedirectResult().catch(e => { if (e && e.code) showAuthError(friendlyAuthError(e)); });
 
 function friendlyAuthError(e){
   const map = {
     'auth/invalid-email': 'That email address looks invalid.',
     'auth/user-not-found': 'No account found with that email — try Register instead.',
     'auth/wrong-password': 'Incorrect password.',
+    'auth/invalid-credential': 'Incorrect email or password.',
     'auth/email-already-in-use': 'An account already exists with that email — try Sign In instead.',
     'auth/weak-password': 'Password must be at least 6 characters.',
     'auth/popup-closed-by-user': 'Google sign-in was closed before completing.',
+    'auth/cancelled-popup-request': 'Google sign-in was cancelled.',
     'auth/unauthorized-domain': 'This domain isn\'t authorized for sign-in yet — add it under Firebase Authentication → Settings → Authorized domains.',
     'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'Firebase isn\'t configured yet — paste your Firebase project config into FIREBASE_CONFIG in the code.'
   };
   return map[e.code] || e.message || 'Something went wrong — please try again.';
 }
 
-auth.onAuthStateChanged(user => {
-  if (user) {
-    authOverlay.style.display = 'none';
-    appRoot.style.display = '';
-    document.getElementById('userBadge').textContent = user.displayName || user.email || 'Signed in';
+function renderTopbarAuth(){
+  if (currentUser) {
+    const name = currentUser.displayName || currentUser.email || 'Signed in';
+    topbarAuthArea.innerHTML = `<span class="user-badge" title="${escapeHtml(currentUser.email || '')}">${escapeHtml(name)}</span><button class="btn" id="signOutBtn" style="padding:8px 14px;">Sign Out</button>`;
+    document.getElementById('signOutBtn').addEventListener('click', () => auth.signOut());
   } else {
-    authOverlay.style.display = 'flex';
-    appRoot.style.display = 'none';
+    topbarAuthArea.innerHTML = `<button class="btn btn-primary" id="signInTopBtn" style="padding:8px 14px;">Sign In</button>`;
+    document.getElementById('signInTopBtn').addEventListener('click', openAuthModal);
   }
+}
+
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  renderTopbarAuth();
+  if (user) closeAuthModal();
 });
 // ============================================================================
 // END FIREBASE AUTH SETUP
@@ -1355,10 +1378,12 @@ ${getPlatformPromptRules(selectedPlatform, titleMax, lo, hi)}
 // Regenerates metadata for one image only, triggered by its ↻ button.
 async function regenerateSingle(img){
   if (img.unsupported || img.status === 'processing' || bulkRunning) return;
+  if (!requireAuth()) return;
   await generateMetadataForImage(img);
 }
 
 generateBtn.addEventListener('click', async () => {
+  if (!requireAuth()) return;
   const totalKeys = allKeyEntries().length;
   if (totalKeys === 0) {
     alert(anyKeysAdded()
