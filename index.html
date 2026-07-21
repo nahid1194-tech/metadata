@@ -178,6 +178,35 @@
   .auth-google-btn{display:flex;align-items:center;justify-content:center;gap:10px;}
   .user-badge{font-family:var(--mono);font-size:12px;color:var(--text-dim);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 </style>
+<!-- ===== Firebase Analytics (visitor tracking) =====
+     Replace the firebaseConfig values below with your own from:
+     Firebase Console → Project settings → General → Your apps → SDK setup and configuration
+-->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+  import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-analytics.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGEbYpezy6T5H01JiGBPW-KqEkAiBHhgE",
+    authDomain: "metadata-547c3.firebaseapp.com",
+    projectId: "metadata-547c3",
+    storageBucket: "metadata-547c3.firebasestorage.app",
+    messagingSenderId: "609440764460",
+    appId: "1:609440764460:web:93328510781cd0cc4ff789",
+    measurementId: "G-8YWG6YZV8B"
+  };
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(firebaseApp);
+
+  // Automatically logs a "page_view" event on load.
+  // Expose logEvent + analytics globally so the rest of the app can log custom events
+  // (e.g. image uploads, metadata generation runs, exports) — see usage below.
+  window.__firebaseAnalytics = analytics;
+  window.__logAnalyticsEvent = (name, params) => {
+    try { logEvent(analytics, name, params || {}); } catch (e) { console.warn('Analytics log failed', e); }
+  };
+</script>
 </head>
 <body>
 
@@ -357,12 +386,12 @@
 //    or Google Sign-In (and email link auth) will be blocked.
 // ============================================================================
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCGEbYpezy6T5H01JiGBPW-KqEkAiBHhgE",
+  authDomain: "metadata-547c3.firebaseapp.com",
+  projectId: "metadata-547c3",
+  storageBucket: "metadata-547c3.firebasestorage.app",
+  messagingSenderId: "609440764460",
+  appId: "1:609440764460:web:93328510781cd0cc4ff789"
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -979,6 +1008,7 @@ dropzone.addEventListener('drop', e => {
 fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
 function handleFiles(fileList){
+  if (window.__logAnalyticsEvent) window.__logAnalyticsEvent('images_uploaded', { count: fileList.length });
   Array.from(fileList).forEach(file => {
     const nameLower = file.name.toLowerCase();
     const isSvg = file.type === 'image/svg+xml' || nameLower.endsWith('.svg');
@@ -1392,6 +1422,7 @@ generateBtn.addEventListener('click', async () => {
     return;
   }
   if (images.length === 0) { alert('Upload at least one image first.'); return; }
+  if (window.__logAnalyticsEvent) window.__logAnalyticsEvent('generate_started', { image_count: images.length, platform: selectedPlatform });
 
   generateBtn.disabled = true;
   generateBtn.textContent = 'Generating…';
@@ -1463,6 +1494,7 @@ function buildPlatformCsv(imageList, nameFn){
 
 document.getElementById('exportBtn').addEventListener('click', () => {
   if (images.length === 0) { alert('No images to export.'); return; }
+  if (window.__logAnalyticsEvent) window.__logAnalyticsEvent('export_csv', { platform: selectedPlatform, image_count: images.length });
   const csv = buildPlatformCsv(images, img => img.file.name);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -1478,6 +1510,7 @@ document.getElementById('exportBtn').addEventListener('click', () => {
 // ---------- EXPORT ZIP (images + CSV) ----------
 document.getElementById('exportZipBtn').addEventListener('click', async () => {
   if (images.length === 0) { alert('No images to export.'); return; }
+  if (window.__logAnalyticsEvent) window.__logAnalyticsEvent('export_zip', { platform: selectedPlatform, image_count: images.length });
   if (typeof JSZip === 'undefined') { alert('ZIP library failed to load — check your connection and try again.'); return; }
 
   const zipBtn = document.getElementById('exportZipBtn');
